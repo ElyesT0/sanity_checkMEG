@@ -1,489 +1,224 @@
-"""
-Module Name: 
-    Functions sanity check
+from sklearn.pipeline import make_pipeline
+from sklearn.preprocessing import StandardScaler
+from sklearn.svm import SVC
+import glob
+import matplotlib.pyplot as plt
+import numpy as np
+import mne
+import pandas as pd
+from sklearn.decomposition import PCA
+from mne.decoding import UnsupervisedSpatialFilter
+from mne.decoding import SlidingEstimator, GeneralizingEstimator, cross_val_multiscore
 
-Description:
-    Provide a set of functions to test the coherence of MEG data.
-
-Author:
-    Elyès Tabbane
-
-Date:
-    {V.1: 04.07.2024}
-
-Version:
-    V1
-
-"""
-
-
-from modules.parameters import *
-
-
-from IPython.display import display_markdown
-# ******************************************************************
-# SANITY CHECK RELATED FUNCTIONS
-# ******************************************************************
-
-def get_filenames_with_run(directory):
-    # List to store filenames containing "run" and ending with ".fif"
-    filenames_with_run = []
-    
-    # Iterate over all files in the specified directory
-    for filename in os.listdir(directory):
-        # Check if "run" is in the filename and it ends with ".fif"
-        if "run" in filename and filename.endswith(".fif"):
-            filenames_with_run.append(filename)
-    
-    return filenames_with_run
-
-def partition_array(events_presentation):
-    filtered_events = [evt for evt in events_presentation if evt[2] not in [4, 5, 60, 61]]
-    
-    # Initialize variables
-    partitioned_arrays = []
-    current_array = []
-
-    # Iterate through filtered_events and partition into groups of 12
-    for i, item in enumerate(filtered_events):
-        current_array.append(item)
-        if len(current_array) == 12:
-            partitioned_arrays.append(current_array)
-            current_array = []
-
-    # Append the last partition if it contains any events
-    if current_array:
-        partitioned_arrays.append(current_array)
-    
-    return partitioned_arrays
-
-
-
-
-
-def get_event_presentation(path_raw, path_behavior, expected_nb_trials=15):
+# ______________________________________________________________________________________________________________________
+def SVM_decoder():
     """
-    Processes MEG data and behavioral data to extract and compare event sequences.
+    This is the basic SVM decoder that generalizes across time in a one versus all manner
+    :return:
+    """
+    clf = make_pipeline(StandardScaler(), SVC(C=1, kernel='linear', probability=True))
+    time_gen = GeneralizingEstimator(clf, scoring=None, n_jobs=-1, verbose=True)
+    return time_gen
 
-    This function performs the following tasks:
-    1. Loads and processes raw MEG data files to identify event sequences.
-    2. Reads and processes behavioral data files.
-    3. Compares the event sequences identified in MEG data with those in behavioral data.
-    4. Excludes specific events (e.g., fixation cross, fixation blue) from the analysis.
-    5. Outputs a summary of whether the event sequences in MEG data match those in the behavioral data.
+# ______________________________________________________________________________________________________________________
+def plot_gat(score, times, chance=0.5, title ='SVM classifier, scores', vmin = 0, vmax = 0):
+    if vmin == 0:
+        vmin = chance - 5 * np.std(score)
+    if vmax == 0:
+        vmax = chance + 5 * np.std(score)
+    fig, ax = plt.subplots(1)
+    im = ax.matshow(score, vmin=vmin, vmax=vmax, cmap='RdBu_r', origin='lower',
+                    extent=times[[0, -1, 0, -1]])
+    ax.axhline(0., color='k')
+    ax.axvline(0., color='k')
+    ax.xaxis.set_ticks_position('bottom')
+    ax.set_xlabel('Testing Time (s)')
+    ax.set_ylabel('Training Time (s)')
+    ax.set_title(title)
+    plt.colorbar(im, ax=ax)
+
+    return fig
+
+#_______________________________________________________________________________________________________________________
+def extract_first_occurrences(lst):
+    first_occurrences = {}
+    seen = set()
+
+    for index, value in enumerate(lst):
+        if value not in seen:
+            seen.add(value)
+            first_occurrences[index] = value
+
+    return first_occurrences
+
+# _______________________________________________________________________________________________________________________
+def from_seq_to_seqID(sequence):
+
+    seq = sequence.replace('[','')
+    seq = seq.replace(']','')
+    seq = seq.split(',')
+    seq = [int(i) for i in seq]
+    new_seq = np.asarray([0]*12)
+    l = 0
+    A = seq[l]
+    inds_A = np.where(np.asarray(seq) == A)[0]
+    new_seq[inds_A] = l
+    pres_pos = [A]
+    for ii in range(1,12):
+        if seq[ii] not in pres_pos:
+            l += 1
+            A = seq[ii]
+            inds_A = np.where(np.asarray(seq) == A)[0]
+            new_seq[inds_A] = l
+            pres_pos.append(A)
+
+    SEQS = {'[0 1 0 1 0 1 0 1 0 1 0 1]':'Rep2','[0 1 1 1 1 0 0 1 0 0 0 1]':'CRep2',
+    '[0 1 2 0 1 2 0 1 2 0 1 2]':'Rep3', '[0 1 2 0 2 1 1 2 0 1 0 2]':'CRep3',
+    '[0 1 2 3 0 1 2 3 0 1 2 3]':'Rep4','[0 1 2 3 2 1 3 0 0 3 1 2]':'CRep4',
+    '[0 0 1 1 2 2 0 0 1 1 2 2]':'RepEmbed', '[0 0 1 1 2 2 0 0 2 2 1 1]':'C1RepEmbed',
+    '[0 1 2 0 2 1 0 1 2 0 2 1]':'C2RepEmbed'}
+
+    return (SEQS[str(new_seq)])
+
+# _______________________________________________________________________________________________________________________
+def load_behavioral_file(subject, start_keyword='subject_id'):
+    """
+    Extracts and processes a pandas DataFrame from a CSV file by dynamically finding the start of relevant data,
+    and converts specific string representations of lists into actual lists.
 
     Parameters:
-    - path_raw (str): Path to the directory containing raw MEG data files.
-    - path_behavior (str): Path to the behavioral data file.
-    - expected_nb_trials (int, optional): Expected number of trials per block. Default is 15.
+    - file_path: str, the path to the CSV file.
+    - start_keyword: str, the keyword that indicates the start of relevant data (default is 'subject_id').
 
     Returns:
-    - None: This function prints the results directly and does not return any value.
-
-    Note:
-    - The function assumes specific metadata structure and event codes.
-    - The function modifies logging levels and suppresses specific warnings during execution.
-    - Requires `mne`, `pandas`, `numpy`, and other standard Python libraries.
-
+    - df: pandas DataFrame, containing the extracted and processed data.
     """
-    logging.getLogger('mne').setLevel(logging.ERROR)
-    warnings.filterwarnings("ignore", message="This file contains raw Internal Active Shielding data", category=RuntimeWarning)
-
-    # Load behavioral file
-    nb_line_metadata = 172
-    df = pd.read_csv(path_behavior, skiprows=nb_line_metadata)
-
-    # List raw filenames
-    raw_filenames = get_filenames_with_run(path_raw)
-
-    # Holder for all the arrays of all runs' events
-    all_events_presentation = np.array([])
-
-    # Holder for booleans resulting of the test between MEG identified presented sequence and Behavioral identified presented sequence
-    same = []
-
-    # Holder for booleans resulting of the test for the right number of trials per block (expected_nb_trials)
-    full_block = []
-
-    for i in range(len(raw_filenames)):
-        try:
-            # Load MEG data
-            raw = mne.io.read_raw_fif(os.path.join(path_raw, raw_filenames[i]), preload=True, allow_maxshield=True, verbose=False)
-
-            # Find events
-            events_presentation = mne.find_events(raw, mask_type="not_and", mask=2**6 + 2**7 + 2**8 + 2**9 + 2**10 + 2**11 + 2**12 + 2**13 + 2**14 + 2**15, verbose=False, min_duration=0.1)
-
-            # Exclude events with codes 4 and 5 (fixation cross and fixation blue as well as win or loss)
-            filtered_events = [evt for evt in events_presentation[:, 2] if evt not in [4, 5, 60, 61]]
-            all_events_presentation = np.append(all_events_presentation, filtered_events)
-
-            # Free up memory space
-            del raw
-
-            # Unique list of events' codes
-            unique_events = np.unique(filtered_events)
-
-            # Number of Trials per block
-            partitioned_arrays = partition_array(events_presentation)
-            nb_trials = len(partitioned_arrays)
-
-            # Unique list of events' names
-            translated_unique = [reverse_event_dict[num] for num in unique_events]
-
-            # Behavioral data sequence name
-            seqName = df[df['block'] == (i)]['sequenceName'].unique()[0]
-
-            # Test if MEG and Behavioral point to the same presented sequence
-            same.append(all(item.startswith(seqName + '-') for item in translated_unique))
-
-            # Test if there's the right number of trials per block
-            full_block.append(nb_trials == expected_nb_trials)
-
-            if nb_trials == expected_nb_trials:
-                display_markdown(f'**{raw_filenames[i]}**. Number of trials: OK', raw=True)
-            else:
-                display_markdown(f'<span style="color:red"> Please check **{raw_filenames[i]}** </span>', raw=True)
-                display_markdown(f'there are **{nb_trials}** trials in this block. Expected {expected_nb_trials}', raw=True)
-                check_wrong_nb_trial(i + 1)
-
-            if same[-1]:
-                display_markdown(f'**{raw_filenames[i]}**. Matching Raw Events and Behavioral file: OK', raw=True)
-            else:
-                display_markdown(f'<span style="color:red"> Please check **{raw_filenames[i]}**. Events in Raw and in Behavioral do NOT match </span>', raw=True)
-
-        except ValueError as e:
-            print(f"Error encountered with file {raw_filenames[i]}: {e}")
-            continue  # Move to the next file
-
-        display_markdown('-----------------\n', raw=True)
-
-    all_same = all(same)
-    all_full_block = all(full_block)
-    summary = []
-
-    if all_same:
-        summary.append('All presented sequence from MEG data correspond to presented sequence in the Behavioral file.')
+    start_line = None
+    if subject == '01' or subject == '02':
+        # todo for Elyès
+        file_path = glob(config.behavior_raw_path + "/sub-" + subject + "/*.csv")
+        start_line = 0
     else:
-        summary.append('**ERROR**: At least one of the sequence presented was different in the MEG data and the Behavioral file.')
+        # todo for Elyès
+        file_path = glob(config.behavior_raw_path + "/sub-" + subject + "/*.xpd")
 
-    if all_full_block:
-        summary.append(f'\nAll presented blocks have the expected number of trials ({expected_nb_trials})')
+    file_path = file_path[0]
+    # Read the file into a list of lines
+    with open(file_path, 'r') as file:
+        lines = file.readlines()
+
+    # Find the line number where the relevant data starts
+    if start_line !=0:
+        for i, line in enumerate(lines):
+            if start_keyword in line:
+                start_line = i
+                break
+
+    # Load the CSV starting from the identified line
+    df = pd.read_csv(file_path, skiprows=start_line, index_col=False)
+
+    if subject == '01' or subject == '02':
+        df.drop(columns=['participant_number'])
+        df['subject_id'] = int(subject)
+        df['sequenceName'] = [from_seq_to_seqID(seq) for seq in df['PresentedSequence'].values]
     else:
-        summary.append(f'\n**ERROR**: At least one block does not have the right number of trials.')
+        columns_of_interest = [
+            'subject_id', 'block', 'sequenceName', 'trial',
+            'PresentedSequence', 'ProducedSequence', 'RTs', 'Performance'
+        ]
+        df = df[columns_of_interest]
 
-    display_markdown(f"Summary: \n **{' '.join(summary)}**", raw=True)
+    # Select only the columns of interest
 
-    logging.getLogger('mne').setLevel(logging.NOTSET)
-    warnings.resetwarnings()
+    # Convert string representations of lists to actual lists for relevant columns
+    list_columns = ['PresentedSequence', 'ProducedSequence', 'RTs']
+    for col in list_columns:
+        df[col] = df[col].apply(eval)
 
-    
-#-------------------
+    return df
 
-def check_wrong_nb_trial(run_nb):
-
-    # 1. Check the events in the raw file
-    raw=mne.io.read_raw_fif(os.path.join(path_raw,f'run{run_nb:02}_raw.fif'),preload=True, allow_maxshield=True)
-    events_presentation = mne.find_events(raw,mask_type = "not_and",mask = 2**6+2**7+2**8+2**9+2**10+2**11+2**12+2**13+2**14+2**15, verbose=False, min_duration=0.1)
-    print(f'Number of presented events during block {run_nb:02}: ',len(events_presentation))
-    del raw
-
-    print('*** Checking the behavioral file***')
-    df=pd.read_csv(path_processed_behavioral_file)
-    print(f"There are {len(df[df['block']==run_nb])} trials in block {run_nb:02}")
-
-
-#-------------------
-
-
-def plot_presentation_SOA(path_raw,path_behavior):
-    logging.getLogger('mne').setLevel(logging.ERROR)
-    warnings.filterwarnings("ignore", message="This file contains raw Internal Active Shielding data", category=RuntimeWarning)
-    
-    ###################### Behavioral FILE
-    # -- To read an XPD file you can read it as CSV but need to skip all the metadata lines
-    # Load behavioral file
-    nb_line_metadata=172
-    df=pd.read_csv(path_behavior, skiprows=nb_line_metadata)
-
-    
-    ###################### Create EVENT File
-    # Return a big numpy array of shape (x,y,z) with
-    # x = number of runs in the experiment
-    # y = number of events in one run
-    # z = 3 (time of event, port code, event code)
-    
-    # List raw filenames
-    raw_filenames=get_filenames_with_run(path_raw)
-    
-    # Holder for all the arrays of all runs' events
-    all_events_presentation_timings=np.array([])
-    
-    all_run_soa=np.array([])
-
-    
-    for i in range(len(raw_filenames)):
-        run_soa=[]
-        
-        # Load MEG data
-        raw=mne.io.read_raw_fif(os.path.join(path_raw,raw_filenames[i]), preload=True, allow_maxshield=True, verbose=False)
-        
-        # Find events
-        events_presentation=mne.find_events(raw,mask_type = "not_and",mask = 2**6+2**7+2**8+2**9+2**10+2**11+2**12+2**13+2**14+2**15, verbose=False, min_duration=0.1)
-        
-        # Exclude events with codes 4 and 5 (fixation cross and fixation blue as well as win or loss)
-        filtered_events = [evt for evt in events_presentation if evt[2] not in [4, 5, 60, 61]]
-        all_events_presentation_timings=np.append(all_events_presentation_timings, filtered_events)
-
-        # Get all timings
-        partitioned_events=partition_array(events_presentation)
-        
-        
-        for arr in partitioned_events:
-            for i in range(len(arr)-1):
-                run_soa.append(arr[i+1][0]-arr[i][0])
-    
-        all_run_soa=np.append(all_run_soa,run_soa)
-        del(raw)
-        
-    all_run_soa=all_run_soa.flatten()
-    #Plot histogram
-    plt.figure(figsize=(10, 6))
-    plt.hist(all_run_soa, edgecolor='black')
-    plt.xlabel('SOA (ms)')
-    plt.ylabel('Frequency')
-    plt.title('Distribution of Stimulus Onset Asynchrony (SOA) -- All Runs')
-    plt.grid(True)
-    plt.tight_layout()
-    #plt.show()
-    logging.getLogger('mne').setLevel(logging.NOTSET)
-    warnings.resetwarnings()
-
-# --------------------------------------------------
-
-def get_time_per_run(path_raw,per_run=False):
-    logging.getLogger('mne').setLevel(logging.ERROR)
-    warnings.filterwarnings("ignore", message="This file contains raw Internal Active Shielding data", category=RuntimeWarning)
-     # List raw filenames
-    raw_filenames=get_filenames_with_run(path_raw)
-
-    all_durations=[]
-    
-    for i in range(len(raw_filenames)):
-        
-        # Load MEG data
-        raw=mne.io.read_raw_fif(os.path.join(path_raw,raw_filenames[i]), preload=True, allow_maxshield=True, verbose=False)
-        
-        ## Get the recording duration in seconds
-        duration_seconds = raw.times[-1] - raw.times[0]
-
-        # Calculate the duration in minutes and seconds
-        minutes = int(duration_seconds // 60)
-        seconds = int(duration_seconds % 60)
-
-        if per_run:
-            display_markdown(f"Recording duration run {i+1::02}: {minutes} minutes {seconds} seconds", raw=True)
-        
-        
-        all_durations.append(duration_seconds)
-        
-        del(raw)
-        
-    minutes = int(np.mean(all_durations) // 60)
-    seconds = int(np.mean(all_durations) % 60)    
-    display_markdown(f' **Mean duration for on block**: {minutes} minutes {seconds} seconds', raw=True)
-    logging.getLogger('mne').setLevel(logging.NOTSET)
-    warnings.resetwarnings()
-# --------------------------------------------------
-
-def get_mean_time_per_trial(path_raw):
-    print('One trial duration is calculated as the time between [first element of sequence n] - [first element of sequence n+1]')
-    
-    logging.getLogger('mne').setLevel(logging.ERROR)
-    warnings.filterwarnings("ignore", message="This file contains raw Internal Active Shielding data", category=RuntimeWarning)
-    
-    # List raw filenames
-    raw_filenames=get_filenames_with_run(path_raw)
-    
-    # Holder for all the trial durations
-    run_trial_duration=[]
-    
-    
-    for index in range(len(raw_filenames)):
-    
-        # Load MEG data
-        raw=mne.io.read_raw_fif(os.path.join(path_raw,raw_filenames[index]), preload=True, allow_maxshield=True, verbose=False)
-        
-        # Find events
-        events_presentation=mne.find_events(raw,mask_type = "not_and",mask = 2**6+2**7+2**8+2**9+2**10+2**11+2**12+2**13+2**14+2**15, verbose=False, min_duration=0.1)
-        
-       
-        for i in range(14):
-            partitioned_arrays=partition_array(events_presentation)
-            run_trial_duration.append((partitioned_arrays[i+1][0][0]-partitioned_arrays[i][0][0])/1000)
-        
-        del raw
-        
-    minutes = int(np.mean(run_trial_duration) // 60)
-    seconds = int(np.mean(run_trial_duration) % 60)    
-    display_markdown(f' **Mean duration for one trial**: {minutes} minutes {seconds} seconds', raw=True)
-    
-    
-
-# -------------------------
-# Plotting MEG data
-# -------------------------
-def plot_evoked_gfp(epo_path,save_path,sub_nb, epo_type):
-    """Plot evoked response based on provided Epochs. Save the resulting figure in a save_path.
-
-    Args:
-        epo_path (str): directory to read epochs.
-        save_path (str): directory to save figure as png.
-        sub_nb (int): subject number (ex: 1, 2, 3...)
-        epo_type (str): epoch type (e.g. Item, sequence, etc). Used in the title and name of png.
+# ____________________________________________________________________________________________________
+def expand_dataframe_with_position(df):
     """
-    # -- modify epo_type string
-    adjusted_epo_type = epo_type.replace(' ', '_')
-    # -- load epochs
-    epo=mne.read_epochs(epo_path,preload=True)
-    epo.apply_baseline((-0.2,0))
+    Expands the dataframe by duplicating each row 12 times, corresponding to each item in the PresentedSequence,
+    and adds a column 'PresentedPosition' that contains each of the 12 items.
 
-    # -- get evoked
-    evoked=epo.average()
+    Parameters:
+    - df: pandas DataFrame, the original dataframe.
 
-    # -- Plot evoked
-    # Count the number of MAG and GRAD sensors
-    n_mag = len(mne.pick_types(evoked.info, meg='mag'))
-    n_grad = len(mne.pick_types(evoked.info, meg='grad'))
-
-    # Plot evoked with GFP and title
-    fig = evoked.plot(gfp=True, titles='Evoked Response with GFP')
-
-    # Customize the plot to add titles to each subfigure
-    sensor_titles = [f'MAG ({n_mag})', f'GRAD ({n_grad})']
-    for ax, title in zip(fig.axes, sensor_titles):
-        ax.set_title(title)
-    # Add a main title
-    fig.suptitle(f'Evoked Response with GFP - {epo_type} - sub_{sub_nb:02}', fontsize=16)
-
-    # -- Save figure: 
-    fig.savefig(os.path.join(save_path,f'sub{sub_nb:02}_{adjusted_epo_type}_evoked_response_gfp.png'))
-    del(epo)
-    del(evoked)
-    
-    
-# ******************************************************************
-# BIDS RELATED FUNCTIONS
-# ******************************************************************
-
-def extract_events_and_event_IDs(raw):
+    Returns:
+    - expanded_df: pandas DataFrame, the expanded dataframe with 'PresentedPosition' column added.
     """
-    Extracts specific events and their IDs from raw MEG/EEG data using MNE.
+    # Initialize an empty list to store the expanded rows
+    expanded_rows = []
+
+    # Iterate through each row in the dataframe
+    for _, row in df.iterrows():
+        # Get the PresentedSequence for the current row
+        presented_sequence = row['PresentedSequence']
+
+        # Check if the length of PresentedSequence is 12 (as expected)
+        if len(presented_sequence) != 12:
+            raise ValueError("PresentedSequence does not have exactly 12 items.")
+
+        # Create 12 new rows, one for each item in PresentedSequence
+        for i, item in enumerate(presented_sequence):
+            # Copy the original row and add the PresentedPosition
+            new_row = row.copy()
+            new_row['PresentedPosition'] = item
+            expanded_rows.append(new_row)
+
+    # Convert the list of expanded rows into a new DataFrame
+    expanded_df = pd.DataFrame(expanded_rows)
+
+    return expanded_df
+
+#_______________________________________________________________________________________________________________________
+def extract_epochs_first_presentation(subject):
     """
-    events = mne.find_events(raw, min_duration=0.01)
-
-    # Filter out feedback score events (trigger codes that are multiples of 10)
-    events_sequence_presentation = events[(events[:, 2] > 10) & (events[:, 2] < 97)]
-    events_fixation = events[events[:, 2] == 9]
-    events_fixation_blue = events[events[:, 2] == 99]
-    events_resting_phase = events[events[:, 2] == 128]
-
-    events_of_interest = np.vstack([events_fixation, events_fixation_blue, events_sequence_presentation, events_resting_phase])
-
-    dict_fixation = {'Fixation': 9}
-    dict_reproduction = {'Reproduction': 99}
-    dict_sequences = event_dict
-    dict_resting_state = {'Resting_state': 128}
-
-    event_ids_dict = {**dict_fixation, **dict_reproduction, **dict_sequences, **dict_resting_state}
-
-    return events_of_interest, event_ids_dict
-
-def prepare_data_for_mne_bids_pipeline(subject='02', base_path="/Users/fosca/Documents/Fosca/INSERM/Projets/ReplaySeq/ICM/Data_ICM/",
-                                       triux=True, task_name='reproduction', cal_filename='sss_cal_3101_160108.dat', ct_filename='ct_sparse.fif',
-                                       run_names=[f"{i:02}" for i in range(1, 19)]):
+    This function extracts from epochs items the epochs for which the position could not be anticipated
+    :param subject:
+    :return: epochs of spatial items that could not be anticipated
     """
-    Prepare and convert MEG data to BIDS format for MNE-BIDS pipeline processing.
-    """
-    original_data_path = base_path + "/raw/"
-    root = base_path + '/BIDS/'
+    import warnings
 
-    for run in run_names:
-        print(f"--- saving in bids format run {run} ---")
-        data_path = original_data_path + subject + f'/run{run}_raw.fif'
-        raw = mne.io.read_raw_fif(data_path, allow_maxshield=True, preload=True)
+    # todo for Elyès
+    path = config.derivatives_path + '/items/sub-'+subject+'/meg/sub-'+subject+'_task-reproduction_epo.fif'
 
-        if triux:
-            # Example of renaming BIO channels for Triux system (assuming BIO channels need renaming)
-            mapping = {ch: ch.replace('BIO', 'EEG') for ch in raw.ch_names if 'BIO' in ch}
-            raw.rename_channels(mapping)
+    warnings.warn("Careful, this function only works for epochs before rejection", UserWarning)
+    epochs = mne.read_epochs(path, preload=True)
+    if subject =='01' or subject =='02':
+        epochs=epochs[epochs.events[:,2]!=1]
 
-        events, event_ids = extract_events_and_event_IDs(raw)
-
-        # Create the BIDS path
-        bids_path = BIDSPath(subject=subject, task=task_name, run=run, datatype='meg', root=root)
-
-        # Write the raw data
-        write_raw_bids(raw, bids_path=bids_path, allow_preload=True, format='FIF',events=events,
-                       event_id=event_ids, overwrite=True)
-
-        # Write events to a file
-       # events_fname = bids_path.copy().update(suffix='eve', extension='.fif')
-        #mne.write_events(events_fname, events, overwrite=True)
-
-        # Write event_ids to a TSV file (optional)
-        #event_id_path = bids_path.copy().update(suffix='events', extension='.tsv')
-        #mne_bids.tsv_to_str(event_ids, event_id_path.fpath, overwrite=True)
-
-        # Write MEG calibration and crosstalk files
-        cal_fname = root + f'/system_calibration_files/{cal_filename}'
-        ct_fname = root + f'/system_calibration_files/{ct_filename}'
-        write_meg_calibration(calibration=cal_fname, bids_path=bids_path)
-        write_meg_crosstalk(fname=ct_fname, bids_path=bids_path)
-
-# --------------------------------------------------
-def inspect_raw(run,verbose=False):
-    # bad_channels_test : enter group of usually recognized bad channels. Makes it easier to check if they are still bad accross runs.
-    # Open the raw object
-    raw=mne.io.read_raw_fif(all_run_fif[run], allow_maxshield=True, preload=True,verbose=verbose)
-    raw_filter = raw.copy().notch_filter(freqs=[50,100,150])
-    
-    # 1 - Plot the raw object for the given subjet / run.
-    raw_filter.plot(n_channels=30)
-    
-    # 2 - Plot the PSD to note outliers 
-    #raw.pick_types(eeg=False)
-    raw_filter.compute_psd().plot()
-    del(raw)
-    del(raw_filter)
-    gc.collect()  # Force garbage collection
-    
-# --------------------------------------------------
-def inspect_empty_room():
-    # bad_channels_test : enter group of usually recognized bad channels. Makes it easier to check if they are still bad accross runs.
-    # Open the raw object
-    raw=mne.io.read_raw_fif(path_empty_room, allow_maxshield=True, preload=True,verbose=False)
-    raw_filter = raw.copy().notch_filter(freqs=[50,100,150])
-    
-    # 1 - Plot the raw object for the given subjet / run.
-    raw_filter.plot(n_channels=30)
-    
-    # 2 - Plot the PSD to note outliers 
-    #raw.pick_types(eeg=False)
-    raw_filter.compute_psd().plot()
-    del(raw)
-    del(raw_filter)
-    gc.collect()  # Force garbage collection
+    metadata = load_behavioral_file(subject)
+    epochs.metadata = expand_dataframe_with_position(metadata)
+    presented_sequences = metadata["PresentedSequence"].values
+    indices = []
+    for k, seq in enumerate(presented_sequences):
+        first_occurrences = extract_first_occurrences(seq)
+        indices.append([i+12*k for i in list(first_occurrences.keys())])
+    indices = np.concatenate(indices)
+    return epochs[indices]
 
 
-"""
-Change logs
+def run_decoding_sanity_check(sub_nb):
 
-Version 1 -- 04.07.2024
-- Modified the function get_time_per_run()
-- Added the function get_mean_time_per_trial()
-- Modified the function get_event_presentation
-- Modified the partition_array function (now based on length of trial)
+    epochs = extract_epochs_first_presentation(sub_nb)
+    epochs.apply_baseline(baseline=(-0.1,0.))
+    epochs.pick_types(meg=True)
+    # on décime les données pour que ça soit plus léger
+    epochs.decimate(4)
+    PCA_model = UnsupervisedSpatialFilter(PCA(70), average=False)
+    # on fait une PCA qui correspond aux données après maxfilter pour qu'il n'y ait que des dimensions informatives dans le décodeur
+    PCA_data = PCA_model.fit_transform(epochs.get_data())
+    epochs._data = PCA_data
+    model_gat = SVM_decoder()
+
+    One_score_simple_gat = cross_val_multiscore(model_gat, X=epochs.get_data(), y=epochs.events[:, 2])
+    fig = plot_gat(np.mean(One_score_simple_gat, axis=0), times=epochs.times,
+                     chance=1 / len(np.unique(epochs.events[:, 2])))
+    plt.shows()
+
+    return fig
 
 
-
-"""
