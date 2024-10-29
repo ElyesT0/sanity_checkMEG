@@ -441,20 +441,23 @@ def prepare_data_for_mne_bids_pipeline(subject='02', base_path="/Users/fosca/Doc
         write_meg_crosstalk(fname=ct_fname, bids_path=bids_path)
 
 # --------------------------------------------------
-def inspect_raw(run,verbose=False):
+def inspect_raw(run,post_processing=False,verbose=False):
     # bad_channels_test : enter group of usually recognized bad channels. Makes it easier to check if they are still bad accross runs.
     # Open the raw object
-    raw=mne.io.read_raw_fif(all_run_fif[run], allow_maxshield=True, preload=True,verbose=verbose)
-    raw_filter = raw.copy().notch_filter(freqs=[50,100,150])
+    if post_processing:
+        path_raw=all_run_sss[run]
+    else:
+        path_raw=all_run_fif[run]
+    raw=mne.io.read_raw_fif(path_raw, allow_maxshield=True, preload=True,verbose=verbose)
+    #raw_filter = raw.copy().notch_filter(freqs=[50,100,150])
     
     # 1 - Plot the raw object for the given subjet / run.
-    raw_filter.plot(n_channels=30)
+    raw.plot(n_channels=30)
     
     # 2 - Plot the PSD to note outliers 
     #raw.pick_types(eeg=False)
-    raw_filter.compute_psd().plot()
+    raw.compute_psd().plot()
     del(raw)
-    del(raw_filter)
     gc.collect()  # Force garbage collection
     
 # --------------------------------------------------
@@ -473,6 +476,8 @@ def inspect_empty_room():
     del(raw)
     del(raw_filter)
     gc.collect()  # Force garbage collection
+
+# --------------------------------------------------
 
 
 """

@@ -21,9 +21,9 @@ from pybv import write_brainvision
 # ******************************************************************
 # PATHS
 # ******************************************************************
-
+post_processing=True
 # Subject number
-sub_nb=11
+sub_nb=8
 
 # Get file name in XPD from the file_names.json file
 with open('modules/file_names.json', 'r') as file:
@@ -56,6 +56,16 @@ list_raw = os.listdir(path_raw)
 list_raw_fif = [name for name in list_raw if 'run' in name and name.endswith('.fif')]
 all_run_fif=[os.path.join(path_raw,name) for name in list_raw_fif]
 
+# Post processing Paths
+if post_processing:
+    path_derivatives_fullSequence=os.path.join(path_root,f"derivatives/sequence/sub-{sub_nb:02}/meg")
+    path_derivatives_items=os.path.join(path_root,f"derivatives/items/sub-{sub_nb:02}/meg")
+    list_derivatives_items=os.listdir(path_derivatives_items)
+    list_raw_sss = [name for name in list_derivatives_items if 'proc-sss' in name and name.endswith('.fif')]
+    all_run_sss=[os.path.join(path_derivatives_items,name) for name in list_raw_sss] # Prendre tout là dedans: /Volumes/T5_EVO/1-experiments/REPLAYSEQ/2-Data/derivatives/items/sub-08/meg
+    epo_item_path=os.path.join(path_derivatives_items,f'sub-{sub_nb:02}_task-reproduction_epo.fif')
+    epo_sequence_path=os.path.join(path_derivatives_fullSequence,f'sub-{sub_nb:02}_task-reproduction_epo.fif')
+    
 # Save path
 # -- Behavioral
 path_save_processed_behavioral=os.path.join(path_root,f'behavior/processed/sub-{sub_nb:02}')
@@ -76,6 +86,8 @@ path_save_eeg=os.path.join(path_root,f'1-main_MEG/eeg/sub-{sub_nb:02}')
 # USEFUL DICTIONARIES
 # ******************************************************************
 seq_name_list=['Rep2','CRep2','Rep3','CRep3','Rep4','CRep4', 'RepEmbed', 'C1RepEmbed', 'C2RepEmbed']
+# Sequence names ordered in increasing level of difficulty 
+ordered_seq_name_list=['RepEmbed','Rep2','Rep3','Rep4','C1RepEmbed','C2RepEmbed','CRep2','CRep3','CRep4']
 
 event_dict={'fixation_blue': 4,
 'fixation': 5,
