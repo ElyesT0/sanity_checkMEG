@@ -258,7 +258,7 @@ def plot_presentation_SOA(path_raw,path_behavior):
     logging.getLogger('mne').setLevel(logging.NOTSET)
     warnings.resetwarnings()
 
-# --------------------------------------------------
+# ----------------------------------- ---------------
 
 def get_time_per_run(path_raw,per_run=False):
     logging.getLogger('mne').setLevel(logging.ERROR)
