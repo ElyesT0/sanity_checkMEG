@@ -478,8 +478,33 @@ def inspect_empty_room():
     gc.collect()  # Force garbage collection
 
 # --------------------------------------------------
+def plot_evoked(epo_path,baseline):
+    epo_object=mne.read_epochs(epo_path) 
+    evoked=epo_object.apply_baseline(baseline).average()
+    evoked.plot(gfp=True)
+    del(evoked)
+    del(epo_object)
+    gc.collect()
+    
+# --------------------------------------------------
+def compare_evoked(epo_path):
+    # 0. Load Epochs
+    epoch_sequence=mne.read_epochs(epo_path) 
+    
+    # 1. ajouter les métadonnées aux epochs. (Fonctionne différemment pour item et séquences)
+    epoch_sequence.metadata=pd.read_csv(path_processed_behavioral_file)
 
+    # 2. Créer le dictionnaire avec les epochs correspondantes
+    evoked_dict = {name: epoch_sequence[f"sequenceName == '{name}'"].average() for name in ordered_seq_name_list}
 
+    # 3. plot evokeds with the dictionary
+
+    mne.viz.plot_compare_evokeds(
+        evoked_dict,
+        legend="upper left",
+        show_sensors="upper right",
+        cmap="viridis"
+    )
 """
 Change logs
 

@@ -18,6 +18,15 @@ import json
 from pybv import write_brainvision
 
 
+from sklearn.pipeline import make_pipeline
+from sklearn.preprocessing import StandardScaler
+from sklearn.svm import SVC
+import glob
+from sklearn.decomposition import PCA
+from mne.decoding import UnsupervisedSpatialFilter
+from mne.decoding import SlidingEstimator, GeneralizingEstimator, cross_val_multiscore
+
+
 # ******************************************************************
 # PATHS
 # ******************************************************************
