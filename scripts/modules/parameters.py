@@ -32,10 +32,11 @@ from mne.decoding import SlidingEstimator, GeneralizingEstimator, cross_val_mult
 # ******************************************************************
 post_processing=True
 # Subject number
-sub_nb=8
+sub_nb=5
+path_sanity_checks="/Users/elyestabbane/Documents/UNICOG/8-MEG/sanity_checkMEG/scripts"
 
 # Get file name in XPD from the file_names.json file
-with open('modules/file_names.json', 'r') as file:
+with open(os.path.join(path_sanity_checks,'modules/file_names.json'), 'r') as file:
     xpd_fileName_dict=json.load(file)
 raw_xpd_fileName=xpd_fileName_dict['experiment']['raw']
 xpd_fileName=raw_xpd_fileName[f'{sub_nb}']
@@ -84,13 +85,14 @@ path_processed_behavioral_file=os.path.join(path_save_processed_behavioral,f'sub
 path_save_ICA=os.path.join(path_root,f'/1-main_MEG/objects/ica-saved/sub-{sub_nb:02}')
 
 # -- Merged Behavioral
-path_save_merged_behavioral=os.path.join(path_root,'behavior/merged')
+path_save_merged_behavioral=os.path.join(path_root,'behavior/processed/merged')
 path_save_merged_behavioral_file= os.path.join(path_save_merged_behavioral,'merged_behavioral_megSeq.csv')
 
 # -- EEG only
 path_save_eeg=os.path.join(path_root,f'1-main_MEG/eeg/sub-{sub_nb:02}')
 
-
+# -- Path save figures BEHAVIORAL
+plot_path_behavior="/Users/elyestabbane/Documents/UNICOG/2-Experiments/replayseq/4-Figures/behavior"
 # ******************************************************************
 # USEFUL DICTIONARIES
 # ******************************************************************
@@ -221,10 +223,15 @@ reverse_event_dict={value: key for key, value in event_dict.items()}
 # VISUALIZATION PARAMETERS
 # ******************************************************************
 
-
+plot_figsize_coef = 0.8
 plot_figsize=(8,5)
 plot_colors=['#03045E', '#03045E', '#0077B6', '#0077B6', '#00B4D8', '#00B4D8', '#ADE8F4', '#ADE8F4', 
          '#03045E', '#03045E', '#0077B6', '#0077B6', '#00B4D8', '#00B4D8', '#ADE8F4', '#ADE8F4', 
          '#03045E', '#03045E', '#0077B6', '#0077B6', '#00B4D8', '#00B4D8', '#ADE8F4', '#ADE8F4', '#ADE8F4']
 title_size=15
 padding_size=10
+
+# Legend size for the plot_regression function
+legend_size=10
+bar_thickness=0.8
+bar_frame_width=3 # define linewidht parameter in barh plots

@@ -1,5 +1,35 @@
 from modules.parameters import *
 
+# ================================
+# Preprocessing Functions
+# ================================
+
+def drop_subjects_with_less_rows(df, subject_col):
+    """
+    Drops subjects that don't have the maximum number of rows.
+    
+    Parameters:
+        df (pd.DataFrame): The DataFrame containing subject data.
+        subject_col (str): The column name for subject IDs.
+    
+    Returns:
+        pd.DataFrame: The filtered DataFrame with only subjects having the maximum number of rows.
+    """
+    # Calculate the number of rows per subject
+    rows_per_subject = df[subject_col].value_counts()
+    max_rows = rows_per_subject.max()
+    
+    # Identify subjects to drop
+    subjects_to_drop = rows_per_subject[rows_per_subject < max_rows].index.tolist()
+    
+    # Print the dropped subjects
+    print(f"Dropping subjects with fewer rows than the max ({max_rows} rows).\nSubjects that were dropped: {subjects_to_drop}")
+    
+    # Filter the DataFrame to keep only subjects with max rows
+    filtered_df = df[df[subject_col].isin(rows_per_subject[rows_per_subject == max_rows].index)]
+    filtered_df = filtered_df.reset_index(drop=True)
+
+    return filtered_df
 
 def merge_csv_files(file_paths, output_path):
     """
@@ -14,9 +44,12 @@ def merge_csv_files(file_paths, output_path):
 
     # Iterate over the file paths and read each CSV file into a DataFrame
     for file_path in file_paths:
-        df = pd.read_csv(file_path)
-        dataframes.append(df)
-        print(f'Added {file_path}')
+        try:
+            df = pd.read_csv(file_path)
+            dataframes.append(df)
+            print(f'Added {file_path}')
+        except FileNotFoundError:
+            print(f'FileNotFoundError. Not found : {file_path}')
     
     # Concatenate all DataFrames
     merged_df = pd.concat(dataframes, ignore_index=True)
@@ -25,6 +58,11 @@ def merge_csv_files(file_paths, output_path):
     merged_df.to_csv(output_path, index=False)
     print(f'Merged file saved to {output_path}')
     
+
+# ================================
+# Measures and performances functions
+# ================================
+
 # ----------------------------------------------
 def dl_distance(s1, s2):
     """
@@ -126,7 +164,9 @@ def compare_tokens(origin, recall):
 
 
 #--------------------------------------------------------------------------------------------
-
+# ================================
+# Stat functions
+# ================================
 def confidence_interval95(arr):
     """
     Calculate the 95% confidence interval for a given array of values.
@@ -159,9 +199,9 @@ def confidence_interval95(arr):
 #--------------------------------------------------------------------------------------------
 
 
-# ******************************************************************
-# PLOTTING FUNCTIONS
-# ******************************************************************
+# ================================
+# Plotting and Analysis functions
+# ================================
 
 def plot_mean_dl(data):
     available_seq_name_list=[]
@@ -215,6 +255,122 @@ def plot_mean_dl(data):
     plt.title("Mean Distance DL - All Sequences", fontsize=title_size, pad=padding_size)
     plt.show()
 
+def plot_mean_error_rate(data,path=plot_path_behavior,order_diff=False,save=False):
+    # If order_diff is True, then on the plot, the histograms will be ordered by increasing level of difficulty
+    sequences= seq_name_list
+
+    # Holder Objects
+    all_error_rates_seq = []
+    mean_per_participant_error_rates = []
+    sem_per_participant_error_rates = []
+
+    # For each sequence
+    for name in sequences:
+        error_rates_seq = []
+        # -- For each participant
+        for IDs in data['subject_id'].unique():
+            # -- Number of trials
+            nb_trials = len(data[(data['subject_id'] == IDs) & (data['sequenceName'] == name)])
+            
+            # -- Test if there is at least one trial for this sequence
+            if nb_trials != 0:
+                # -- Total number of errors for the sequence
+                nb_error = len(data[(data['subject_id'] == IDs) & (data['sequenceName'] == name) & (data['performance'] != 'success')])
+                # -- Append error rate
+                error_rates_seq.append(100 * nb_error / nb_trials)
+
+        all_error_rates_seq.append(error_rates_seq)
+
+    print('---------------------------------------------------------\n')
+
+    # Compute mean and SEM for each sequence
+    for i in range(len(all_error_rates_seq)):
+        mean_error_holder = np.mean(all_error_rates_seq[i])
+        sem_holder = np.std(all_error_rates_seq[i]) / np.sqrt(len(all_error_rates_seq[i]))
+        mean_per_participant_error_rates.append(mean_error_holder)
+        sem_per_participant_error_rates.append(sem_holder)
+
+    # Flatten all_error_rates_seq to combine error rates across all sequences
+    all_error_rates_combined = [rate for seq_rates in all_error_rates_seq for rate in seq_rates]
+
+    # Calculate overall mean and SEM
+    overall_error_rate_all = np.mean(all_error_rates_combined)
+    sem_overall_error_rate_all = np.std(all_error_rates_combined) / np.sqrt(len(all_error_rates_combined))
+    print(f'Overall Error rate: average over all sequences : {np.round(overall_error_rate_all, 4)}, SEM: {np.round(sem_overall_error_rate_all, 3)}')
+    
+    plt.rcParams["figure.facecolor"] = "white"
+
+    # Harmonized plot size with reference code
+    plot_figsize_original = (10, len(sequences))
+    plot_figsize_current = (plot_figsize_coef * plot_figsize_original[0], (plot_figsize_coef - 0.3) * plot_figsize_original[1])
+
+    
+    fig, ax = plt.subplots(figsize=plot_figsize_current)
+
+    # Prepare yticklabels and fill conditions based on 'control' keyword
+    yticklabels = []
+    fill_conditions = []
+    for label in sequences:
+        weight = 'bold' if 'control' not in label.lower() else 'skip'
+        yticklabels.append((label, weight))
+
+    fill_conditions = [True] * len(sequences)
+
+    if order_diff:
+        sorted_indexes=np.argsort(mean_per_participant_error_rates)
+        # reorder sequences
+        sequences_tmp=np.array(sequences)
+        sequences=sequences_tmp[sorted_indexes]
+        fill_conditions=np.array(fill_conditions)
+        
+        # Bar plot with harmonized parameters
+        for i, (filled, color) in enumerate(zip(fill_conditions[sorted_indexes], plot_colors)):
+            ax.barh(i, mean_per_participant_error_rates[sorted_indexes[i]],
+                    xerr=sem_per_participant_error_rates[sorted_indexes[i]], capsize=5, align="center",
+                    edgecolor=color, facecolor=color if filled else 'none',
+                    height=bar_thickness, linewidth=bar_frame_width)
+        
+
+    else:
+        # Bar plot with harmonized parameters
+        for i, (filled, color) in enumerate(zip(fill_conditions, plot_colors)):
+            ax.barh(i, mean_per_participant_error_rates[i],
+                    xerr=sem_per_participant_error_rates[i], capsize=5, align="center",
+                    edgecolor=color, facecolor=color if filled else 'none',
+                    height=bar_thickness, linewidth=bar_frame_width)
+            
+    # Set y-ticks and labels
+    ax.set_yticks(np.arange(len(sequences)))
+    ax.set_yticklabels(sequences, fontsize=14)
+
+    if not order_diff:
+        for tick, (label, weight) in zip(ax.get_yticklabels(), yticklabels):
+            tick.set_text(label)
+            tick.set_fontsize(14)
+            if weight == 'bold':
+                tick.set_fontweight('bold')
+
+    ax.invert_yaxis()
+
+    # Harmonized x-axis and labels
+    ax.tick_params(axis='x', labelsize=16)
+    ax.tick_params(axis='y', labelsize=16)
+    ax.set_xlim(0, 100)
+    ax.set_xlabel("Mean Error Rate (%)", fontsize=title_size, labelpad=padding_size)
+
+    # Set title for the plot
+    plt.title("Mean Error Rates - All Sequences", fontsize=title_size, pad=padding_size)
+
+    # Save or show plot
+    if save:
+        if len(sequences) == len(seq_name_list):
+            plt.savefig(f'{path}/mean_errorRates_allSequences.jpg', bbox_inches='tight', dpi=800)
+        else:
+            plt.savefig(f'{path}/error_rate_subset/mean_errorRates_subset.jpg', bbox_inches='tight', dpi=800)
+    else:
+        plt.show()
+    
+    plt.close()
 
 def plot_error_rate(data):
     available_seq_name_list=[]

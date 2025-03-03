@@ -1,52 +1,56 @@
 {
-    "experiment": {
-        "raw": {
-            "1": "run_megSeq_002_202406280939.xpd",
-            "2": "run_megSeq_004_202407041133.xpd",
-            "3": "run_megSeq_50724_202407051047.xpd",
-            "4": "run_megSeq_004_202407041133.xpd",
-            "5": "run_megSeq_50724_202407051047.xpd",
-            "6": "sub-06_2024-07-16.xpd",
-            "7": "sub-07_2024-07-19.xpd",
-            "8": "run_megSeq_20240722_202407220931.xpd",
-            "9": "run_megSeq_7102024_202410071338.xpd",
-            "11": "run_megSeq_100920242_202410101652.xpd",
-            "12": "run_megSeq_14102024_202410141357.xpd",
-            "13": "run_megSeq_171020240_202410170951.xpd",
-            "14": "run_megSeq_1710202402_202410171402.xpd",
-            "15": "run_megSeq_21102024_202410211407.xpd"
-        },
-        "processed": {
-            "1": "/Volumes/T5_EVO/1-experiments/REPLAYSEQ/7-data_neurospin/2-main_behavioral_file/processed/sub-01/sub-01-processed_meg_behavioral.csv",
-            "2": "/Volumes/T5_EVO/1-experiments/REPLAYSEQ/7-data_neurospin/2-main_behavioral_file/processed/sub-02/sub-02-processed_meg_behavioral.csv",
-            "3": "/Volumes/T5_EVO/1-experiments/REPLAYSEQ/7-data_neurospin/2-main_behavioral_file/processed/sub-03/sub-03-processed_meg_behavioral.csv",
-            "15": "/Volumes/T5_EVO/1-experiments/REPLAYSEQ/2-Data/behavior/processed/sub-15/sub-15-processed_meg_behavioral.csv",
-            "14": "/Volumes/T5_EVO/1-experiments/REPLAYSEQ/2-Data/behavior/processed/sub-14/sub-14-processed_meg_behavioral.csv",
-            "13": "/Volumes/T5_EVO/1-experiments/REPLAYSEQ/2-Data/behavior/processed/sub-13/sub-13-processed_meg_behavioral.csv",
-            "11": "/Volumes/T5_EVO/1-experiments/REPLAYSEQ/2-Data/behavior/processed/sub-11/sub-11-processed_meg_behavioral.csv",
-            "8": "/Volumes/T5_EVO/1-experiments/REPLAYSEQ/2-Data/behavior/processed/sub-08/sub-08-processed_meg_behavioral.csv",
-            "7": "/Volumes/T5_EVO/1-experiments/REPLAYSEQ/2-Data/behavior/processed/sub-07/sub-07-processed_meg_behavioral.csv",
-            "9": "/Volumes/T5_EVO/1-experiments/REPLAYSEQ/2-Data/behavior/processed/sub-09/sub-09-processed_meg_behavioral.csv"
-        }
+  "experiment": {
+    "raw": {
+      "1": "run_megSeq_002_202406280939.xpd",
+      "2": "run_megSeq_004_202407041133.xpd",
+      "3": "run_megSeq_50724_202407051047.xpd",
+      "4": "run_megSeq_004_202407041133.xpd",
+      "5": "run_megSeq_50724_202407051047.xpd",
+      "6": "sub-06_2024-07-16.xpd",
+      "7": "sub-07_2024-07-19.xpd",
+      "8": "run_megSeq_20240722_202407220931.xpd",
+      "9": "run_megSeq_7102024_202410071338.xpd",
+      "11": "run_megSeq_100920242_202410101652.xpd",
+      "12": "run_megSeq_14102024_202410141357.xpd",
+      "13": "run_megSeq_171020240_202410170951.xpd",
+      "14": "run_megSeq_1710202402_202410171402.xpd",
+      "15": "run_megSeq_21102024_202410211407.xpd",
+      "16": "run_megSeq_5102024_202411051520.xpd",
+      "17": "run_megSeq_7112024_202411070947.xpd"
     },
-    "MNE": {
-        "raw": {
-            "sub-01": {
-                "run-01": "my/path"
-            },
-            "sub-02": {
-                "run-02": "my/path",
-                "run-03": "my/path"
-            }
-        },
-        "behavioral": {
-            "sub-01": {
-                "run-01": "my/path"
-            },
-            "sub-02": {
-                "run-02": "my/path",
-                "run-03": "my/path"
-            }
-        }
+    "processed": {
+      "1": "/Volumes/T5_EVO/1-experiments/REPLAYSEQ/2-Data/behavior/processed/sub-01/sub-01-processed_meg_behavioral.csv",
+      "2": "/Volumes/T5_EVO/1-experiments/REPLAYSEQ/2-Data/behavior/processed/sub-02/sub-02-processed_meg_behavioral.csv",
+      "3": "/Volumes/T5_EVO/1-experiments/REPLAYSEQ/2-Data/behavior/processed/sub-03/sub-03-processed_meg_behavioral.csv",
+      "15": "/Volumes/T5_EVO/1-experiments/REPLAYSEQ/2-Data/behavior/processed/sub-15/sub-15-processed_meg_behavioral.csv",
+      "14": "/Volumes/T5_EVO/1-experiments/REPLAYSEQ/2-Data/behavior/processed/sub-14/sub-14-processed_meg_behavioral.csv",
+      "13": "/Volumes/T5_EVO/1-experiments/REPLAYSEQ/2-Data/behavior/processed/sub-13/sub-13-processed_meg_behavioral.csv",
+      "11": "/Volumes/T5_EVO/1-experiments/REPLAYSEQ/2-Data/behavior/processed/sub-11/sub-11-processed_meg_behavioral.csv",
+      "8": "/Volumes/T5_EVO/1-experiments/REPLAYSEQ/2-Data/behavior/processed/sub-08/sub-08-processed_meg_behavioral.csv",
+      "7": "/Volumes/T5_EVO/1-experiments/REPLAYSEQ/2-Data/behavior/processed/sub-07/sub-07-processed_meg_behavioral.csv",
+      "9": "/Volumes/T5_EVO/1-experiments/REPLAYSEQ/2-Data/behavior/processed/sub-09/sub-09-processed_meg_behavioral.csv",
+      "17": "/Volumes/T5_EVO/1-experiments/REPLAYSEQ/2-Data/behavior/processed/sub-17/sub-17-processed_meg_behavioral.csv",
+      "16": "/Volumes/T5_EVO/1-experiments/REPLAYSEQ/2-Data/behavior/processed/sub-16/sub-16-processed_meg_behavioral.csv"
     }
+  },
+  "MNE": {
+    "raw": {
+      "sub-01": {
+        "run-01": "my/path"
+      },
+      "sub-02": {
+        "run-02": "my/path",
+        "run-03": "my/path"
+      }
+    },
+    "behavioral": {
+      "sub-01": {
+        "run-01": "my/path"
+      },
+      "sub-02": {
+        "run-02": "my/path",
+        "run-03": "my/path"
+      }
+    }
+  }
 }

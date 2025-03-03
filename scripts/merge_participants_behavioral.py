@@ -22,7 +22,7 @@ with open('modules/file_names.json', 'r') as file:
     json_file_names=json.load(file)
   
 # Get the Processed path for all subjects 
-processed_file_names=json_file_names['processed']
+processed_file_names=json_file_names['experiment']['processed']
 
 # Turn the dictionnary of paths into a list
 list_processed_file_names=[path for path in processed_file_names.values()]

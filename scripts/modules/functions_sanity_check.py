@@ -111,7 +111,7 @@ def get_event_presentation(path_raw, path_behavior, expected_nb_trials=15):
             raw = mne.io.read_raw_fif(os.path.join(path_raw, raw_filenames[i]), preload=True, allow_maxshield=True, verbose=False)
 
             # Find events
-            events_presentation = mne.find_events(raw, mask_type="not_and", mask=2**6 + 2**7 + 2**8 + 2**9 + 2**10 + 2**11 + 2**12 + 2**13 + 2**14 + 2**15, verbose=False, min_duration=0.1)
+            events_presentation = mne.find_events(raw, mask_type="not_and", mask=2**6 + 2**7 + 2**8 + 2**9 + 2**10 + 2**11 + 2**12 + 2**13 + 2**14 + 2**15, verbose=False, min_duration=0.05)
 
             # Exclude events with codes 4 and 5 (fixation cross and fixation blue as well as win or loss)
             filtered_events = [evt for evt in events_presentation[:, 2] if evt not in [4, 5, 60, 61]]
